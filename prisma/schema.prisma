@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Definir el Enum para tipos de proyecto
+enum ProjectType {
+  SOFTWARE
+  MARKETING
+  DISENO
+  CONSULTORIA
+  SOPORTE
+  MANTENIMIENTO
+  IMPLEMENTACION
+}
+
+enum ActionType {
+  CREADO
+  ASIGNADO
+  REASIGNADO
+  ESTADO_CAMBIADO
+  COMENTADO
+  ARCHIVO_ADJUNTADO
+  RESUELTO
+  REABIERTO
+  PRIORIDAD_CAMBIADA
+  CRITICIDAD_CAMBIADA
+  CERRADO
+}
+
+
+model Client {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  contact   String?
+  email     String   @unique
+  phone     String?
+  isActive  Boolean  @default(true)
+  projects  Project[]
+  claims    Claim[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clients")
+}
+
+model Project {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  type     String
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String   @db.ObjectId
+  claims   Claim[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Claim {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  type        String
+  priority    String
+  severity    String
+  status      String   @default("abierto")
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String   @db.ObjectId
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String?  @db.ObjectId
+  attachments FileAttachment[]
+  claimHistory ClaimHistory[]
+  areaAssignments AreaAssignment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("claims")
+}
+
+model FileAttachment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  filename  String
+  path      String
+  size      Int?
+  mimetype  String?
+  claim     Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId   String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  @@map("file_attachments")
+}
+
+model ClaimHistory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  claim       Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId     String   @db.ObjectId
+  actionType  String
+  actionLabel String   
+  user        String
+  oldValue    String?
+  newValue    String?
+  area        Area?   @relation(fields: [areaId], references: [id])
+  areaId      String? @db.ObjectId
+  subArea     SubArea?@relation(fields: [subAreaId], references: [id])
+  subAreaId   String? @db.ObjectId
+  details     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@map("claim_history")
+  @@index([claimId, createdAt])
+  @@index([actionType])
+}
+
+model Area {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  subAreas    SubArea[]
+  assignments AreaAssignment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("areas")
+  claimHistories ClaimHistory[]
+}
+
+model SubArea {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  area        Area      @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  areaId      String    @db.ObjectId
+  isActive    Boolean   @default(true)
+  assignments AreaAssignment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("sub_areas")
+  claimHistories ClaimHistory[]
+}
+
+model AreaAssignment {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  claim       Claim     @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId     String    @db.ObjectId
+  area        Area      @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  areaId      String    @db.ObjectId
+  subArea     SubArea?  @relation(fields: [subAreaId], references: [id], onDelete: Cascade)
+  subAreaId   String?   @db.ObjectId
+  assignedBy  String
+  assignedAt  DateTime  @default(now())
+  notes       String?
+
+  isCurrent   Boolean   @default(true)
+
+  @@map("area_assignments")
+}
