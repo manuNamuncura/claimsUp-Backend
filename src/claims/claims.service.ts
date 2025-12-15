@@ -1,15 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ActionType } from '@prisma/client';
+import { Prisma, ActionType, ClaimStatus } from '@prisma/client';
 import { TracingService } from '../tracing/tracing.service';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { UpdateClaimDto } from './dto/update-claim.dto';
+import { StatusService } from 'src/status/status.service';
+import { ChangeStatusDto } from './dto/change-status.dto';
 
 @Injectable()
 export class ClaimsService {
   constructor(
     private prisma: PrismaService, 
-    @Inject(TracingService) private tracingService: TracingService
+    @Inject(TracingService) private tracingService: TracingService,
+    @Inject(StatusService) private statusService: StatusService,
   ) {}
 
   async create(createClaimDto: CreateClaimDto, userId: string = 'system') {
@@ -55,7 +58,7 @@ export class ClaimsService {
         type: createClaimDto.type,
         priority: createClaimDto.priority,
         severity: createClaimDto.severity,
-        status: 'abierto',
+        status: 'ABIERTO',
         clientId: createClaimDto.clientId,
         projectId: createClaimDto.projectId,
         // Crear historial automáticamente
@@ -436,7 +439,7 @@ export class ClaimsService {
     const updatedClaim = await this.prisma.claim.update({
       where: { id: claimId },
       data: {
-        status: 'resuelto',
+        status: ClaimStatus.RESUELTO,
         claimHistory: {
           create: {
             actionType: 'resuelto',
@@ -474,7 +477,7 @@ export class ClaimsService {
     const updatedClaim = await this.prisma.claim.update({
       where: { id: claimId },
       data: {
-        status: 'abierto',
+        status: ClaimStatus.ABIERTO,
         claimHistory: {
           create: {
             actionType: 'reabierto',
@@ -485,6 +488,8 @@ export class ClaimsService {
         },
       },
     });
+  
+  
 
     // REGISTRAR EVENTO DE REAPERTURA
     await this.tracingService.recordEvent({
@@ -500,6 +505,123 @@ export class ClaimsService {
 
     return updatedClaim;
   }
+
+  async changeStatus(claimId: string, changeStatusDto: ChangeStatusDto, userId: string) {
+    this.isValidObjectId(claimId);
+
+    const claim = await this.findOne(claimId);
+
+    // Validar transición
+    if (!this.statusService.validateTransition(claim.status, changeStatusDto.newStatus)) {
+      throw new BadRequestException(
+        `No se puede cambiar el estado de "${claim.status}" a "${changeStatusDto.newStatus}"`
+      );
+    }
+
+    // Validar campos requeridos
+    const requiredFields = this.statusService.getRequiredFields(
+      claim.status, 
+      changeStatusDto.newStatus
+    );
+    
+    const missingFields = requiredFields.filter(field => 
+      !changeStatusDto[field] && !changeStatusDto.internalNotes?.includes(field)
+    );
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(
+        `Campos requeridos para esta transición: ${missingFields.join(', ')}`
+      );
+    }
+
+    // Realizar el cambio de estado
+    const updatedClaim = await this.prisma.claim.update({
+      where: { id: claimId },
+      data: {
+        status: changeStatusDto.newStatus,
+        claimHistory: {
+          create: {
+            actionType: 'ESTADO_CAMBIADO',
+            actionLabel: `Estado cambiado a ${changeStatusDto.newStatus} por ${userId}`,
+            user: userId,
+            oldValue: claim.status,
+            newValue: changeStatusDto.newStatus,
+            details: changeStatusDto.reason || `Estado cambiado por ${userId}`,
+            metadata: {
+              reason: changeStatusDto.reason,
+              internalNotes: changeStatusDto.internalNotes,
+            },
+          },
+        },
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    // Registrar evento de trazabilidad
+    await this.tracingService.recordEvent({
+      claimId,
+      actionType: 'ESTADO_CAMBIADO',
+      user: userId,
+      oldValue: claim.status,
+      newValue: changeStatusDto.newStatus,
+      details: changeStatusDto.reason || `Estado cambiado a ${changeStatusDto.newStatus}`,
+      metadata: {
+        reason: changeStatusDto.reason,
+        internalNotes: changeStatusDto.internalNotes,
+      },
+    });
+
+    return updatedClaim;
+  }
+
+  async validateAction(claimId: string, action: string): Promise<{ allowed: boolean; message?: string }> {
+    this.isValidObjectId(claimId);
+
+    const claim = await this.findOne(claimId);
+    const allowed = this.statusService.canPerformAction(claim.status, action);
+
+    if (!allowed) {
+      return {
+        allowed: false,
+        message: `La acción "${action}" no está permitida en el estado "${claim.status}"`,
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  async getAvailableTransitions(claimId: string) {
+    this.isValidObjectId(claimId);
+
+    const claim = await this.findOne(claimId);
+    const transitions = this.statusService.getPossibleTransitions(claim.status);
+
+    return {
+      currentStatus: claim.status,
+      availableTransitions: transitions.map(status => ({
+        status,
+        label: this.statusService.formatStatusLabel(status),
+        description: this.statusService.getStatusDescription(status),
+        requiredFields: this.statusService.getRequiredFields(claim.status, status),
+      })),
+    };
+  }
+
 
   private getMimeType(filename: string): string {
     const extension = filename.split('.').pop()?.toLowerCase();

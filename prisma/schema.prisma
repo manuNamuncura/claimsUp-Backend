@@ -32,6 +32,14 @@ enum ActionType {
   CERRADO
 }
 
+enum ClaimStatus {
+  ABIERTO
+  EN_PROCESO
+  ESPERANDO_CLIENTE
+  RESUELTO
+  CERRADO
+  CANCELADO
+}
 
 model Client {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -49,11 +57,11 @@ model Client {
 }
 
 model Project {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  id       String    @id @default(auto()) @map("_id") @db.ObjectId
   name     String
   type     String
-  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId String   @db.ObjectId
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String    @db.ObjectId
   claims   Claim[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -62,22 +70,22 @@ model Project {
 }
 
 model Claim {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String
-  type        String
-  priority    String
-  severity    String
-  status      String   @default("abierto")
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId    String   @db.ObjectId
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId   String?  @db.ObjectId
-  attachments FileAttachment[]
-  claimHistory ClaimHistory[]
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String
+  type            String
+  priority        String
+  severity        String
+  status          ClaimStatus @default(ABIERTO)
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId        String      @db.ObjectId
+  project         Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId       String?     @db.ObjectId
+  attachments     FileAttachment[]
+  claimHistory    ClaimHistory[]
   areaAssignments AreaAssignment[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@map("claims")
 }
@@ -104,10 +112,10 @@ model ClaimHistory {
   user        String
   oldValue    String?
   newValue    String?
-  area        Area?   @relation(fields: [areaId], references: [id])
-  areaId      String? @db.ObjectId
-  subArea     SubArea?@relation(fields: [subAreaId], references: [id])
-  subAreaId   String? @db.ObjectId
+  area        Area?    @relation(fields: [areaId], references: [id])
+  areaId      String?  @db.ObjectId
+  subArea     SubArea? @relation(fields: [subAreaId], references: [id])
+  subAreaId   String?  @db.ObjectId
   details     String?
   metadata    Json?
   createdAt   DateTime @default(now())

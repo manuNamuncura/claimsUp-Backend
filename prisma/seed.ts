@@ -1,4 +1,4 @@
-import { PrismaClient, ProjectType } from '@prisma/client';
+import { PrismaClient, ProjectType, ClaimStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -252,7 +252,7 @@ async function main() {
           type: 'error',
           priority: 'alta',
           severity: 'critica',
-          status: 'abierto',
+          status: ClaimStatus.ABIERTO,
           clientId: clients[0].id,
           projectId: projects[0].id,
           claimHistory: {
@@ -272,7 +272,7 @@ async function main() {
           type: 'feature',
           priority: 'media',
           severity: 'media',
-          status: 'en_proceso',
+          status: ClaimStatus.EN_PROCESO,
           clientId: clients[1].id,
           projectId: projects[2].id,
           claimHistory: {
@@ -300,7 +300,7 @@ async function main() {
           type: 'consulta',
           priority: 'baja',
           severity: 'baja',
-          status: 'resuelto',
+          status: ClaimStatus.RESUELTO,
           clientId: clients[2].id,
           projectId: projects[4].id,
           claimHistory: {
@@ -328,7 +328,7 @@ async function main() {
           type: 'error',
           priority: 'alta',
           severity: 'alta',
-          status: 'en_proceso',
+          status: ClaimStatus.EN_PROCESO,
           clientId: clients[0].id,
           projectId: projects[1].id,
           claimHistory: {

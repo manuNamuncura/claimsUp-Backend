@@ -8,6 +8,9 @@ import { ProjectsModule } from './projects/projects.module';
 import { ClaimsModule } from './claims/claims.module';
 import { AreasModule } from './areas/areas.module';
 import { TracingModule } from './tracing/tracing.module';
+import { StatusService } from './status/status.service';
+import { StatusController } from './status/status.controller';
+import { StatusModule } from './status/status.module';
 
 @Module({
   imports: [
@@ -20,8 +23,9 @@ import { TracingModule } from './tracing/tracing.module';
     ClaimsModule,
     AreasModule,
     TracingModule,
+    StatusModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, StatusController],
+  providers: [AppService, StatusService],
 })
 export class AppModule {}
