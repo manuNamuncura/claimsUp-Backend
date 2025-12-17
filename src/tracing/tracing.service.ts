@@ -41,7 +41,7 @@ export class TracingService {
         claimId: event.claimId,
         actionType: event.actionType,
         actionLabel,
-        user: event.user,
+        user: event.user || 'admin',
         oldValue: event.oldValue,
         newValue: event.newValue,
         areaId: event.areaId,

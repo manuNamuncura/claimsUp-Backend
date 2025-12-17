@@ -1,6 +1,12 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ActionType } from '@prisma/client';
+import { ActionType, ClaimStatus } from '@prisma/client';
 import { TracingService } from '../tracing/tracing.service';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { CreateSubAreaDto } from './dto/create-subarea.dto';
@@ -10,7 +16,7 @@ import { AssignClaimDto } from './dto/assign-claim.dto';
 export class AreasService {
   constructor(
     private prisma: PrismaService,
-    @Inject(TracingService) private tracingService: TracingService
+    @Inject(TracingService) private tracingService: TracingService,
   ) {}
 
   // ===== ÁREAS =====
@@ -21,7 +27,9 @@ export class AreasService {
     });
 
     if (existingArea) {
-      throw new ConflictException(`Ya existe un área con el nombre: ${createAreaDto.name}`);
+      throw new ConflictException(
+        `Ya existe un área con el nombre: ${createAreaDto.name}`,
+      );
     }
 
     return this.prisma.area.create({
@@ -33,16 +41,18 @@ export class AreasService {
     return this.prisma.area.findMany({
       where: { isActive: true },
       include: {
-        subAreas: includeSubAreas ? {
-          where: { isActive: true },
-        } : false,
+        subAreas: includeSubAreas
+          ? {
+              where: { isActive: true },
+            }
+          : false,
         _count: {
           select: {
             assignments: {
-              where: { isCurrent: true }
-            }
-          }
-        }
+              where: { isCurrent: true },
+            },
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -50,13 +60,13 @@ export class AreasService {
 
   async findAreaById(id: string) {
     this.validateObjectId(id);
-    
+
     const area = await this.prisma.area.findUnique({
       where: { id },
       include: {
         subAreas: {
           where: { isActive: true },
-          orderBy: { name: 'asc' }
+          orderBy: { name: 'asc' },
         },
         assignments: {
           where: { isCurrent: true },
@@ -66,12 +76,12 @@ export class AreasService {
                 id: true,
                 title: true,
                 status: true,
-              }
-            }
+              },
+            },
           },
           take: 10,
-          orderBy: { assignedAt: 'desc' }
-        }
+          orderBy: { assignedAt: 'desc' },
+        },
       },
     });
 
@@ -92,7 +102,9 @@ export class AreasService {
     });
 
     if (!area) {
-      throw new NotFoundException(`Área con ID ${createSubAreaDto.areaId} no encontrada`);
+      throw new NotFoundException(
+        `Área con ID ${createSubAreaDto.areaId} no encontrada`,
+      );
     }
 
     // Verificar si ya existe una subárea con el mismo nombre en esta área
@@ -104,7 +116,9 @@ export class AreasService {
     });
 
     if (existingSubArea) {
-      throw new ConflictException(`Ya existe una subárea con el nombre: ${createSubAreaDto.name} en esta área`);
+      throw new ConflictException(
+        `Ya existe una subárea con el nombre: ${createSubAreaDto.name} en esta área`,
+      );
     }
 
     return this.prisma.subArea.create({
@@ -114,8 +128,8 @@ export class AreasService {
           select: {
             id: true,
             name: true,
-          }
-        }
+          },
+        },
       },
     });
   }
@@ -133,18 +147,18 @@ export class AreasService {
     }
 
     return this.prisma.subArea.findMany({
-      where: { 
+      where: {
         areaId,
-        isActive: true 
+        isActive: true,
       },
       include: {
         _count: {
           select: {
             assignments: {
-              where: { isCurrent: true }
-            }
-          }
-        }
+              where: { isCurrent: true },
+            },
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -155,7 +169,7 @@ export class AreasService {
     this.validateObjectId(assignClaimDto.claimId);
     this.validateObjectId(assignClaimDto.areaId);
 
-    if (assignClaimDto.subAreaId) {
+    if (assignClaimDto.subAreaId && assignClaimDto.subAreaId !== '') {
       this.validateObjectId(assignClaimDto.subAreaId);
     }
 
@@ -165,7 +179,9 @@ export class AreasService {
     });
 
     if (!claim) {
-      throw new NotFoundException(`Reclamo con ID ${assignClaimDto.claimId} no encontrado`);
+      throw new NotFoundException(
+        `Reclamo con ID ${assignClaimDto.claimId} no encontrado`,
+      );
     }
 
     // Verificar que el área existe
@@ -174,7 +190,9 @@ export class AreasService {
     });
 
     if (!area) {
-      throw new NotFoundException(`Área con ID ${assignClaimDto.areaId} no encontrada`);
+      throw new NotFoundException(
+        `Área con ID ${assignClaimDto.areaId} no encontrada`,
+      );
     }
 
     // Si se especifica subárea, verificar que pertenece al área
@@ -184,19 +202,23 @@ export class AreasService {
       });
 
       if (!subArea) {
-        throw new NotFoundException(`Subárea con ID ${assignClaimDto.subAreaId} no encontrada`);
+        throw new NotFoundException(
+          `Subárea con ID ${assignClaimDto.subAreaId} no encontrada`,
+        );
       }
 
       if (subArea.areaId !== assignClaimDto.areaId) {
-        throw new BadRequestException('La subárea no pertenece al área especificada');
+        throw new BadRequestException(
+          'La subárea no pertenece al área especificada',
+        );
       }
     }
 
     // Obtener asignación anterior
     const previousAssignment = await this.prisma.areaAssignment.findFirst({
-      where: { 
+      where: {
         claimId: assignClaimDto.claimId,
-        isCurrent: true 
+        isCurrent: true,
       },
       include: {
         area: true,
@@ -206,11 +228,11 @@ export class AreasService {
 
     // Marcar todas las asignaciones anteriores de este reclamo como no actuales
     await this.prisma.areaAssignment.updateMany({
-      where: { 
+      where: {
         claimId: assignClaimDto.claimId,
-        isCurrent: true 
+        isCurrent: true,
       },
-      data: { isCurrent: false }
+      data: { isCurrent: false },
     });
 
     // Crear nueva asignación
@@ -218,8 +240,7 @@ export class AreasService {
       data: {
         claimId: assignClaimDto.claimId,
         areaId: assignClaimDto.areaId,
-        subAreaId: assignClaimDto.subAreaId,
-        assignedBy: assignClaimDto.assignedBy,
+        subAreaId: assignClaimDto.subAreaId || null,
         notes: assignClaimDto.notes,
         isCurrent: true,
       },
@@ -229,46 +250,59 @@ export class AreasService {
             id: true,
             title: true,
             status: true,
-          }
+          },
         },
         area: {
           select: {
             id: true,
             name: true,
-          }
+          },
         },
-        subArea: assignClaimDto.subAreaId ? {
-          select: {
-            id: true,
-            name: true,
-          }
-        } : false,
+        subArea: assignClaimDto.subAreaId
+          ? {
+              select: {
+                id: true,
+                name: true,
+              },
+            }
+          : false,
+      },
+    });
+
+    await this.prisma.claim.update({
+      where: { id: assignClaimDto.claimId },
+      data: {
+        status: ClaimStatus.EN_PROCESO,
       },
     });
 
     // REGISTRAR EVENTO DE TRAZABILIDAD
-    const subArea = assignClaimDto.subAreaId ? 
-      await this.prisma.subArea.findUnique({
-        where: { id: assignClaimDto.subAreaId },
-      }) : null;
+    const subArea = assignClaimDto.subAreaId
+      ? await this.prisma.subArea.findUnique({
+          where: { id: assignClaimDto.subAreaId },
+        })
+      : null;
 
-    let actionType = ActionType.ASIGNADO;
+    let actionType: ActionType = ActionType.ASIGNADO;
     let details = `Reclamo asignado al área: ${area.name}`;
-    
+
     if (previousAssignment) {
-      ActionType.REASIGNADO;
+      actionType = ActionType.REASIGNADO;
       const previousAreaName = previousAssignment.area.name;
       const previousSubAreaName = previousAssignment.subArea?.name;
-      details = `Reclamo reasignado de ${previousAreaName}${previousSubAreaName ? ` - ${previousSubAreaName}` : ''} a ${area.name}${subArea ? ` - ${subArea.name}` : ''}`;
+
+      details = `Reclamo reasignado de ${previousAreaName}${
+        previousSubAreaName ? ` - ${previousSubAreaName}` : ''
+      } a ${area.name}${subArea ? ` - ${subArea.name}` : ''}`;
     }
 
     await this.tracingService.recordEvent({
       claimId: assignClaimDto.claimId,
       actionType,
       user: assignClaimDto.assignedBy,
-      oldValue: previousAssignment ? 
-        `${previousAssignment.area.name}${previousAssignment.subArea ? ` - ${previousAssignment.subArea.name}` : ''}` : 
-        undefined,
+      oldValue: previousAssignment
+        ? `${previousAssignment.area.name}${previousAssignment.subArea ? ` - ${previousAssignment.subArea.name}` : ''}`
+        : undefined,
       newValue: `${area.name}${subArea ? ` - ${subArea.name}` : ''}`,
       areaId: assignClaimDto.areaId,
       subAreaId: assignClaimDto.subAreaId,
@@ -280,15 +314,15 @@ export class AreasService {
     });
 
     // También mantener el historial tradicional (para backward compatibility)
-    await this.prisma.claimHistory.create({
-      data: {
-        claimId: assignClaimDto.claimId,
-        actionType: 'asignado',
-        actionLabel: `Asignado a ${area.name}${assignClaimDto.subAreaId ? ` - ${assignment.subArea?.name}` : ''} por ${assignClaimDto.assignedBy}`,
-        user: assignClaimDto.assignedBy,
-        details: `Reclamo asignado al área: ${area.name}${assignClaimDto.subAreaId ? ` - Subárea: ${assignment.subArea?.name}` : ''}`,
-      },
-    });
+    // await this.prisma.claimHistory.create({
+    //   data: {
+    //     claimId: assignClaimDto.claimId,
+    //     actionType: 'asignado',
+    //     actionLabel: `Asignado a ${area.name}${assignClaimDto.subAreaId ? ` - ${assignment.subArea?.name}` : ''} por ${assignClaimDto.assignedBy}`,
+    //     user: assignClaimDto.assignedBy,
+    //     details: `Reclamo asignado al área: ${area.name}${assignClaimDto.subAreaId ? ` - Subárea: ${assignment.subArea?.name}` : ''}`,
+    //   },
+    // });
 
     return assignment;
   }
@@ -297,9 +331,9 @@ export class AreasService {
     this.validateObjectId(claimId);
 
     const assignment = await this.prisma.areaAssignment.findFirst({
-      where: { 
+      where: {
         claimId,
-        isCurrent: true 
+        isCurrent: true,
       },
       include: {
         area: {
@@ -307,21 +341,21 @@ export class AreasService {
             id: true,
             name: true,
             description: true,
-          }
+          },
         },
         subArea: {
           select: {
             id: true,
             name: true,
             description: true,
-          }
+          },
         },
         claim: {
           select: {
             id: true,
             title: true,
             status: true,
-          }
+          },
         },
       },
     });
@@ -339,13 +373,13 @@ export class AreasService {
           select: {
             id: true,
             name: true,
-          }
+          },
         },
         subArea: {
           select: {
             id: true,
             name: true,
-          }
+          },
         },
       },
       orderBy: { assignedAt: 'desc' },
@@ -357,7 +391,7 @@ export class AreasService {
 
     const whereCondition: any = {
       areaId,
-      isCurrent: true
+      isCurrent: true,
     };
 
     if (!includeSubAreas) {
@@ -374,23 +408,25 @@ export class AreasService {
                 id: true,
                 name: true,
                 email: true,
-              }
+              },
             },
             project: {
               select: {
                 id: true,
                 name: true,
                 type: true,
-              }
+              },
             },
-          }
+          },
         },
-        subArea: includeSubAreas ? {
-          select: {
-            id: true,
-            name: true,
-          }
-        } : false,
+        subArea: includeSubAreas
+          ? {
+              select: {
+                id: true,
+                name: true,
+              },
+            }
+          : false,
       },
       orderBy: { assignedAt: 'desc' },
     });
@@ -399,7 +435,12 @@ export class AreasService {
   // ===== MÉTODOS ADICIONALES CON TRAZABILIDAD =====
 
   // Reasignar reclamo entre subáreas de la misma área
-  async reassignToSubArea(claimId: string, subAreaId: string, assignedBy: string, notes?: string) {
+  async reassignToSubArea(
+    claimId: string,
+    subAreaId: string,
+    assignedBy: string,
+    notes?: string,
+  ) {
     this.validateObjectId(claimId);
     this.validateObjectId(subAreaId);
 
@@ -428,21 +469,25 @@ export class AreasService {
     const currentAssignment = await this.getCurrentAssignment(claimId);
 
     if (!currentAssignment) {
-      throw new BadRequestException('El reclamo no tiene una asignación actual');
+      throw new BadRequestException(
+        'El reclamo no tiene una asignación actual',
+      );
     }
 
     // Verificar que estamos en la misma área
     if (currentAssignment.areaId !== subArea.areaId) {
-      throw new BadRequestException('No se puede reasignar a una subárea de diferente área');
+      throw new BadRequestException(
+        'No se puede reasignar a una subárea de diferente área',
+      );
     }
 
     // Marcar asignación anterior como no actual
     await this.prisma.areaAssignment.updateMany({
-      where: { 
+      where: {
         claimId,
-        isCurrent: true 
+        isCurrent: true,
       },
-      data: { isCurrent: false }
+      data: { isCurrent: false },
     });
 
     // Crear nueva asignación
@@ -461,19 +506,19 @@ export class AreasService {
             id: true,
             title: true,
             status: true,
-          }
+          },
         },
         area: {
           select: {
             id: true,
             name: true,
-          }
+          },
         },
         subArea: {
           select: {
             id: true,
             name: true,
-          }
+          },
         },
       },
     });
@@ -501,11 +546,11 @@ export class AreasService {
   // Obtener estadísticas de asignaciones por área
   async getAreaAssignmentStats() {
     const areas = await this.findAllAreas(true);
-    
+
     const stats = await Promise.all(
       areas.map(async (area) => {
         const currentAssignments = await this.getClaimsByArea(area.id, true);
-        
+
         // Contar por estado
         const statusCounts = currentAssignments.reduce((acc, assignment) => {
           const status = assignment.claim.status;
@@ -514,10 +559,11 @@ export class AreasService {
         }, {});
 
         // Contar por subárea
-        const subAreaCounts = area.subAreas.map(subArea => ({
+        const subAreaCounts = area.subAreas.map((subArea) => ({
           id: subArea.id,
           name: subArea.name,
-          count: currentAssignments.filter(a => a.subAreaId === subArea.id).length,
+          count: currentAssignments.filter((a) => a.subAreaId === subArea.id)
+            .length,
         }));
 
         return {
@@ -529,7 +575,7 @@ export class AreasService {
           statusCounts,
           subAreaCounts,
         };
-      })
+      }),
     );
 
     return stats;
@@ -552,16 +598,18 @@ export class AreasService {
     const currentAssignment = await this.getCurrentAssignment(claimId);
 
     if (!currentAssignment) {
-      throw new BadRequestException('El reclamo no tiene una asignación actual');
+      throw new BadRequestException(
+        'El reclamo no tiene una asignación actual',
+      );
     }
 
     // Marcar asignación actual como no actual
     await this.prisma.areaAssignment.updateMany({
-      where: { 
+      where: {
         claimId,
-        isCurrent: true 
+        isCurrent: true,
       },
-      data: { isCurrent: false }
+      data: { isCurrent: false },
     });
 
     // REGISTRAR EVENTO DE DESASIGNACIÓN

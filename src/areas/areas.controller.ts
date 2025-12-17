@@ -1,16 +1,13 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
-  Delete, 
+// src/areas/areas.controller.ts
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
   Query,
-  HttpCode,
-  HttpStatus,
+  DefaultValuePipe,
   ParseBoolPipe,
-  DefaultValuePipe
 } from '@nestjs/common';
 import { AreasService } from './areas.service';
 import { CreateAreaDto } from './dto/create-area.dto';
@@ -21,7 +18,7 @@ import { AssignClaimDto } from './dto/assign-claim.dto';
 export class AreasController {
   constructor(private readonly areasService: AreasService) {}
 
-  // ===== ENDPOINTS DE ÁREAS =====
+  // ===== ÁREAS =====
 
   @Post()
   createArea(@Body() createAreaDto: CreateAreaDto) {
@@ -30,7 +27,8 @@ export class AreasController {
 
   @Get()
   findAllAreas(
-    @Query('includeSubAreas', new DefaultValuePipe(false), ParseBoolPipe) includeSubAreas: boolean
+    @Query('includeSubAreas', new DefaultValuePipe(false), ParseBoolPipe)
+    includeSubAreas: boolean,
   ) {
     return this.areasService.findAllAreas(includeSubAreas);
   }
@@ -40,19 +38,20 @@ export class AreasController {
     return this.areasService.findAreaById(id);
   }
 
-  // ===== ENDPOINTS DE SUB-ÁREAS =====
+  // ===== SUBÁREAS =====
+  // IMPORTANTE: esta ruta coincide con lo que usa el frontend
+  // GET /areas/:id/sub-areas
+  @Get(':id/sub-areas')
+  findSubAreasByArea(@Param('id') id: string) {
+    return this.areasService.findSubAreasByArea(id);
+  }
 
   @Post('subareas')
   createSubArea(@Body() createSubAreaDto: CreateSubAreaDto) {
     return this.areasService.createSubArea(createSubAreaDto);
   }
 
-  @Get('subareas/area/:areaId')
-  findSubAreasByArea(@Param('areaId') areaId: string) {
-    return this.areasService.findSubAreasByArea(areaId);
-  }
-
-  // ===== ENDPOINTS DE ASIGNACIÓN =====
+  // ===== ASIGNACIONES =====
 
   @Post('assign')
   assignClaimToArea(@Body() assignClaimDto: AssignClaimDto) {
@@ -72,71 +71,52 @@ export class AreasController {
   @Get('assignments/area/:areaId')
   getClaimsByArea(
     @Param('areaId') areaId: string,
-    @Query('includeSubAreas', new DefaultValuePipe(false), ParseBoolPipe) includeSubAreas: boolean
+    @Query('includeSubAreas', new DefaultValuePipe(false), ParseBoolPipe)
+    includeSubAreas: boolean,
   ) {
     return this.areasService.getClaimsByArea(areaId, includeSubAreas);
   }
 
-  // ===== ENDPOINTS DE ESTADÍSTICAS =====
+  // ===== ESTADÍSTICAS =====
 
   @Get('stats/assignments')
-  async getAssignmentStats() {
-    // Obtener estadísticas de asignaciones por área
-    const areas = await this.areasService.findAllAreas(true);
-    
-    const stats = await Promise.all(
-      areas.map(async (area) => {
-        const currentAssignments = await this.areasService.getClaimsByArea(area.id, true);
-        
-        return {
-          area: {
-            id: area.id,
-            name: area.name,
-          },
-          totalAssignments: currentAssignments.length,
-          subAreas: area.subAreas.map(subArea => ({
-            id: subArea.id,
-            name: subArea.name,
-            assignmentCount: currentAssignments.filter(a => a.subAreaId === subArea.id).length,
-          })),
-        };
-      })
-    );
-
-    return stats;
+  getAreaAssignmentStats() {
+    return this.areasService.getAreaAssignmentStats();
   }
 
-  // ===== NUEVOS ENDPOINTS =====
+  // ===== REASIGNACIONES / DESASIGNACIONES =====
+
   @Post('reassign-subarea')
-reassignToSubArea(@Body() body: {
-  claimId: string;
-  subAreaId: string;
-  assignedBy: string;
-  notes?: string;
-}) {
-  return this.areasService.reassignToSubArea(
-    body.claimId, 
-    body.subAreaId, 
-    body.assignedBy, 
-    body.notes
-  );
-}
+  reassignToSubArea(
+    @Body()
+    body: {
+      claimId: string;
+      subAreaId: string;
+      assignedBy: string;
+      notes?: string;
+    },
+  ) {
+    return this.areasService.reassignToSubArea(
+      body.claimId,
+      body.subAreaId,
+      body.assignedBy,
+      body.notes,
+    );
+  }
 
-@Post('unassign')
-unassignClaim(@Body() body: {
-  claimId: string;
-  unassignedBy: string;
-  reason?: string;
-}) {
-  return this.areasService.unassignClaim(
-    body.claimId, 
-    body.unassignedBy, 
-    body.reason
-  );
-}
-
-@Get('stats/assignments')
-getAreaAssignmentStats() {
-  return this.areasService.getAreaAssignmentStats();
-}
+  @Post('unassign')
+  unassignClaim(
+    @Body()
+    body: {
+      claimId: string;
+      unassignedBy: string;
+      reason?: string;
+    },
+  ) {
+    return this.areasService.unassignClaim(
+      body.claimId,
+      body.unassignedBy,
+      body.reason,
+    );
+  }
 }

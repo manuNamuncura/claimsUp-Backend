@@ -1,14 +1,14 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsMongoId } from 'class-validator';
 
 export class AssignClaimDto {
-  @IsString()
+  @IsMongoId()
   claimId: string;
 
-  @IsString()
+  @IsMongoId()
   areaId: string;
 
   @IsOptional()
-  @IsString()
+  @IsMongoId()
   subAreaId?: string;
 
   @IsString()

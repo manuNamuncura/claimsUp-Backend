@@ -162,7 +162,7 @@ model AreaAssignment {
   areaId      String    @db.ObjectId
   subArea     SubArea?  @relation(fields: [subAreaId], references: [id], onDelete: Cascade)
   subAreaId   String?   @db.ObjectId
-  assignedBy  String
+  assignedBy  String?
   assignedAt  DateTime  @default(now())
   notes       String?
 

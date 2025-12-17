@@ -188,46 +188,64 @@ export class ClaimsService {
     return claim;
   }
 
-  async update(id: string, updateClaimDto: UpdateClaimDto, userId: string = 'system') {
-    // Validar ObjectId
-    if (!this.isValidObjectId(id)) {
-      throw new BadRequestException('ID de reclamo no válido');
-    }
+  async update(
+  id: string,
+  updateClaimDto: UpdateClaimDto,
+  userId: string = 'system',
+) {
+  if (!this.isValidObjectId(id)) {
+    throw new BadRequestException('ID de reclamo no válido');
+  }
 
-    // Obtener reclamo actual para comparar cambios
-    const currentClaim = await this.findOne(id);
+  const currentClaim = await this.findOne(id);
 
-    // Realizar la actualización
-    const { clientId, status, priority, severity, ...rest } = updateClaimDto as any;
+  const {
+    clientId,
+    projectId,
+    status,
+    priority,
+    severity,
+    ...rest
+  } = updateClaimDto as any;
 
-    const data: any = {
-      ...rest,
-      ...(clientId ? { client: { connect: { id: clientId } } } : {}),
-    };
+  const data: any = {
+    ...rest,
 
-    const updatedClaim = await this.prisma.claim.update({
-      where: { id },
-      data,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
+    ...(status ? { status } : {}),
+    ...(priority ? { priority } : {}),
+    ...(severity ? { severity } : {}),
+
+    ...(clientId
+      ? { client: { connect: { id: clientId } } }
+      : {}),
+
+    ...(projectId
+      ? { project: { connect: { id: projectId } } }
+      : {}),
+  };
+
+  const updatedClaim = await this.prisma.claim.update({
+    where: { id },
+    data,
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
       },
-    });
+      project: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
+    },
+  });
 
-    // REGISTRAR EVENTOS DE TRAZABILIDAD PARA CAMBIOS
-    const events: Array<{
+  const events: Array<{
     claimId: string;
     actionType: ActionType;
     user: string;
@@ -237,59 +255,57 @@ export class ClaimsService {
     metadata?: Record<string, any>;
   }> = [];
 
-    if (status && status !== currentClaim.status) {
-      events.push({
-        claimId: id,
-        actionType: ActionType.ESTADO_CAMBIADO,
-        user: userId,
-        oldValue: currentClaim.status,
-        newValue: status,
-        details: `Estado cambiado de "${currentClaim.status}" a "${status}"`,
-      });
-    }
-
-    if (priority && priority !== currentClaim.priority) {
-      events.push({
-        claimId: id,
-        actionType: ActionType.PRIORIDAD_CAMBIADA,
-        user: userId,
-        oldValue: currentClaim.priority,
-        newValue: priority,
-        details: `Prioridad cambiada de "${currentClaim.priority}" a "${priority}"`,
-      });
-    }
-
-    if (severity && severity !== currentClaim.severity) {
-      events.push({
-        claimId: id,
-        actionType: ActionType.CRITICIDAD_CAMBIADA,
-        user: userId,
-        oldValue: currentClaim.severity,
-        newValue: severity,
-        details: `Criticidad cambiada de "${currentClaim.severity}" a "${severity}"`,
-      });
-    }
-
-    // Registrar todos los eventos
-    for (const event of events) {
-      await this.tracingService.recordEvent(event);
-    }
-
-    // Si no hubo cambios específicos pero se actualizó, registrar evento genérico
-    if (events.length === 0 && Object.keys(updateClaimDto).length > 0) {
-      await this.tracingService.recordEvent({
-        claimId: id,
-        actionType: ActionType.ESTADO_CAMBIADO,
-        user: userId,
-        details: 'Reclamo actualizado',
-        metadata: {
-          updatedFields: Object.keys(updateClaimDto),
-        },
-      });
-    }
-
-    return updatedClaim;
+  if (status && status !== currentClaim.status) {
+    events.push({
+      claimId: id,
+      actionType: ActionType.ESTADO_CAMBIADO,
+      user: userId,
+      oldValue: currentClaim.status,
+      newValue: status,
+      details: `Estado cambiado de "${currentClaim.status}" a "${status}"`,
+    });
   }
+
+  if (priority && priority !== currentClaim.priority) {
+    events.push({
+      claimId: id,
+      actionType: ActionType.PRIORIDAD_CAMBIADA,
+      user: userId,
+      oldValue: currentClaim.priority,
+      newValue: priority,
+      details: `Prioridad cambiada de "${currentClaim.priority}" a "${priority}"`,
+    });
+  }
+
+  if (severity && severity !== currentClaim.severity) {
+    events.push({
+      claimId: id,
+      actionType: ActionType.CRITICIDAD_CAMBIADA,
+      user: userId,
+      oldValue: currentClaim.severity,
+      newValue: severity,
+      details: `Criticidad cambiada de "${currentClaim.severity}" a "${severity}"`,
+    });
+  }
+
+  for (const event of events) {
+    await this.tracingService.recordEvent(event);
+  }
+
+  if (events.length === 0 && Object.keys(updateClaimDto).length > 0) {
+    await this.tracingService.recordEvent({
+      claimId: id,
+      actionType: ActionType.COMENTADO, // o CREADO / ASIGNADO según tu dominio
+      user: userId,
+      details: 'Reclamo actualizado',
+      metadata: {
+        updatedFields: Object.keys(updateClaimDto),
+      },
+    });
+  }
+
+  return updatedClaim;
+}
 
   async remove(id: string) {
     // Validar ObjectId
