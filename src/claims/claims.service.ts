@@ -555,20 +555,20 @@ export class ClaimsService {
       where: { id: claimId },
       data: {
         status: changeStatusDto.newStatus,
-        claimHistory: {
-          create: {
-            actionType: 'ESTADO_CAMBIADO',
-            actionLabel: `Estado cambiado a ${changeStatusDto.newStatus} por ${userId}`,
-            user: userId,
-            oldValue: claim.status,
-            newValue: changeStatusDto.newStatus,
-            details: changeStatusDto.reason || `Estado cambiado por ${userId}`,
-            metadata: {
-              reason: changeStatusDto.reason,
-              internalNotes: changeStatusDto.internalNotes,
-            },
-          },
-        },
+        // claimHistory: {
+        //   create: {
+        //     actionType: 'ESTADO_CAMBIADO',
+        //     actionLabel: `Estado cambiado a ${changeStatusDto.newStatus} por ${userId}`,
+        //     user: userId,
+        //     oldValue: claim.status,
+        //     newValue: changeStatusDto.newStatus,
+        //     details: changeStatusDto.reason || `Estado cambiado por ${userId}`,
+        //     metadata: {
+        //       reason: changeStatusDto.reason,
+        //       internalNotes: changeStatusDto.internalNotes,
+        //     },
+        //   },
+        // },
       },
       include: {
         client: {
@@ -591,7 +591,7 @@ export class ClaimsService {
     // Registrar evento de trazabilidad
     await this.tracingService.recordEvent({
       claimId,
-      actionType: 'ESTADO_CAMBIADO',
+      actionType: ActionType.ESTADO_CAMBIADO,
       user: userId,
       oldValue: claim.status,
       newValue: changeStatusDto.newStatus,
